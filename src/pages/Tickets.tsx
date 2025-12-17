@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { TicketFormDialog, TicketCard } from "@/components/tickets";
 import type { Ticket, CreateTicketInput, UpdateTicketInput, TicketStatus } from "@/types";
+import { updateCompletionDate, updateDueDate, updateReopenCount } from "@/lib/tauri";
 
 // Helper to check if a ticket is overdue
 function isOverdue(ticket: Ticket): boolean {
@@ -261,9 +262,9 @@ export function Tickets() {
     setViewingTicket((prev) => prev ? { ...prev, status } : undefined);
   };
 
-  const handleComplete = async (actualHours?: number) => {
+  const handleComplete = async (actualHours?: number, completionDate?: string) => {
     if (!viewingTicket) return;
-    const updated = await completeTicket(viewingTicket.id, actualHours);
+    const updated = await completeTicket(viewingTicket.id, actualHours, completionDate);
     setViewingTicket(updated);
   };
 
@@ -271,6 +272,27 @@ export function Tickets() {
     if (!viewingTicket) return;
     const updated = await reopenTicket(viewingTicket.id);
     setViewingTicket(updated);
+  };
+
+  const handleUpdateCompletionDate = async (completionDate: string) => {
+    if (!viewingTicket) return;
+    const updated = await updateCompletionDate(viewingTicket.id, completionDate);
+    setViewingTicket(updated);
+    await refresh();
+  };
+
+  const handleUpdateDueDate = async (dueDate: string) => {
+    if (!viewingTicket) return;
+    const updated = await updateDueDate(viewingTicket.id, dueDate);
+    setViewingTicket(updated);
+    await refresh();
+  };
+
+  const handleUpdateReopenCount = async (reopenCount: number) => {
+    if (!viewingTicket) return;
+    const updated = await updateReopenCount(viewingTicket.id, reopenCount);
+    setViewingTicket(updated);
+    await refresh();
   };
 
   if (error) {
@@ -423,6 +445,9 @@ export function Tickets() {
           onStatusChange={handleStatusChange}
           onComplete={handleComplete}
           onReopen={handleReopen}
+          onUpdateCompletionDate={handleUpdateCompletionDate}
+          onUpdateDueDate={handleUpdateDueDate}
+          onUpdateReopenCount={handleUpdateReopenCount}
         />
       )}
 

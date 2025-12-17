@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Settings as SettingsIcon, Sliders, Database, Palette, Save, Loader2, Download, Upload, HardDrive, Trash2, FileText } from "lucide-react";
+import { Settings as SettingsIcon, Sliders, Database, Save, Loader2, Download, Upload, HardDrive, Trash2, FileText, Bug, ExternalLink } from "lucide-react";
+import { ChangelogDialog } from "@/components/ui/changelog-dialog";
+import { getGitHubIssueUrl, APP_VERSION } from "@/lib/constants";
+import { openUrl } from "@/lib/tauri";
 import { getKPIConfig, saveKPIConfig, exportAllData, importData, clearAllData, backupDatabase, restoreDatabase } from "@/lib/tauri";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
@@ -70,6 +73,7 @@ export function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
 
   // Local state for editing
   const [deliveryWeight, setDeliveryWeight] = useState(0.5);
@@ -474,26 +478,6 @@ export function Settings() {
           </CardContent>
         </Card>
 
-        {/* App Preferences Section */}
-        <Card className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
-              <Palette className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">App Preferences</h2>
-              <p className="text-sm text-muted-foreground">
-                Customize application appearance and behavior
-              </p>
-            </div>
-          </div>
-          <div className="pl-14">
-            <p className="text-sm text-muted-foreground">
-              Configure date formats and other application preferences.
-            </p>
-          </div>
-        </Card>
-
         {/* About Section */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -510,7 +494,12 @@ export function Settings() {
           <div className="pl-14 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">Version</span>
-              <span className="text-sm text-muted-foreground">0.1.0</span>
+              <button
+                onClick={() => setShowChangelog(true)}
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
+              >
+                {APP_VERSION}
+              </button>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">Database Location</span>
@@ -524,7 +513,43 @@ export function Settings() {
             </div>
           </div>
         </Card>
+
+        {/* Report Bug Section */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
+              <Bug className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Report a Bug</h2>
+              <p className="text-sm text-muted-foreground">
+                Found an issue? Report it on GitHub
+              </p>
+            </div>
+          </div>
+          <div className="pl-14">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const url = getGitHubIssueUrl();
+                  await openUrl(url);
+                } catch (error) {
+                  alert(`Failed to open GitHub: ${error instanceof Error ? error.message : String(error)}`);
+                }
+              }}
+              className="w-full"
+            >
+              <Bug className="mr-2 h-4 w-4" />
+              Report Bug on GitHub
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </Card>
       </div>
+
+      {/* Changelog Dialog */}
+      <ChangelogDialog open={showChangelog} onOpenChange={setShowChangelog} />
     </div>
   );
 }

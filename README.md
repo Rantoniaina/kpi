@@ -6,7 +6,7 @@ A standalone desktop application for tracking developer performance through tick
 
 ## 🚧 Development Status
 
-**Phase 11 Complete** - Build & Distribution complete. The application is ready for release with standalone macOS build and distribution package.
+**Phase 12 Complete** - All core features and enhancements complete. The application includes auto-update system, enhanced date/time handling, and comprehensive UI improvements. Ready for release with standalone builds for macOS, Linux, and Windows.
 
 ### Completed
 
@@ -60,10 +60,14 @@ A standalone desktop application for tracking developer performance through tick
 - ✅ App Metadata (version, bundle identifier, icons)
 - ✅ macOS Build (DMG installer created)
 - ✅ Release Documentation (release notes and distribution guide)
+- ✅ Date/Time Handling Improvements (DateTimePicker, historical dates, enhanced date picker)
+- ✅ Ticket/Bug Completion & Editing (completion date, due date, reopen count, resolution date editing)
+- ✅ Settings & UI Improvements (changelog viewer, bug reporting, removed app preferences)
+- ✅ Auto-Update System (GitHub Releases API, automatic version checking, update notifications)
 
 ### Status
 
-**✅ Ready for Release** - Version 0.1.0 is complete and ready for distribution. See [RELEASE_NOTES.md](RELEASE_NOTES.md) for details.
+**✅ Ready for Release** - Version 0.1.0 is complete with all core features, enhancements, and auto-update system. Ready for distribution. See [RELEASE_NOTES.md](RELEASE_NOTES.md) for details.
 
 ## Features
 
@@ -81,6 +85,10 @@ A standalone desktop application for tracking developer performance through tick
 - **Loading States** - Skeleton loaders and loading indicators for better UX
 - **Performance** - Pagination, lazy loading, and optimized database queries
 - **First-Time Setup** - Welcome screen for new users with onboarding guidance
+- **Enhanced Date/Time Pickers** - Month/year navigation, time selection, historical date support
+- **Auto-Update System** - Automatic version checking and update notifications via GitHub Releases
+- **Changelog Viewer** - View version history and release notes directly in the app
+- **Bug Reporting** - One-click GitHub issue creation with pre-filled templates
 
 ## Bug Tracking & KPI
 
@@ -245,6 +253,8 @@ kpi/
 - [Development Roadmap](DEVELOPMENT_ROADMAP.md) - Step-by-step build guide
 - [Release Notes](RELEASE_NOTES.md) - Version 0.1.0 release information
 - [Release Guide](RELEASE.md) - Distribution and release instructions
+- [Changelog](CHANGELOG.md) - Version history and release notes
+- [Contributing](CONTRIBUTING.md) - Guidelines for contributing to the project
 
 ## How KPI is Calculated
 
@@ -357,9 +367,12 @@ Comprehensive data management tools:
 - **Restore Database**: Restore from a backup file (automatically reloads the app)
 - **Clear All Data**: Permanently delete all data with confirmation dialog
 
-### App Preferences
+### About & Updates
 
-- **Light Mode Only**: The application uses a clean light theme for optimal readability
+- **Version Information**: View current app version (clickable to view changelog)
+- **Changelog Viewer**: View version history and release notes in a dialog
+- **Report Bug**: One-click GitHub issue creation with pre-filled bug report template
+- **Auto-Update**: Automatic version checking on app startup with update notifications
 
 ## Error Handling & User Experience
 
@@ -414,7 +427,7 @@ Your data is stored locally at:
 ~/Library/Application Support/kpi-tool/
 ├── kpi.db          # SQLite database
 ├── config.json     # KPI configuration (weights, bug penalties)
-└── backups/        # Manual database backups (timestamped)
+└── backups/        # Database backups (manual + automatic pre-update backups)
 ```
 
 **Ubuntu/Linux:**
@@ -422,7 +435,7 @@ Your data is stored locally at:
 ~/.local/share/kpi-tool/
 ├── kpi.db          # SQLite database
 ├── config.json     # KPI configuration (weights, bug penalties)
-└── backups/        # Manual database backups (timestamped)
+└── backups/        # Database backups (manual + automatic pre-update backups)
 ```
 
 **Windows:**
@@ -430,12 +443,46 @@ Your data is stored locally at:
 %APPDATA%\kpi-tool\
 ├── kpi.db          # SQLite database
 ├── config.json     # KPI configuration (weights, bug penalties)
-└── backups/        # Manual database backups (timestamped)
+└── backups/        # Database backups (manual + automatic pre-update backups)
 ```
+
+### Automatic Backups
+
+The app automatically creates backups before updates:
+- **Pre-Update Backups**: Created automatically when downloading a new version
+- **Manual Backups**: Created via Settings → Data Management → Backup Database
+- **Backup Naming**: `kpi_pre_update_YYYYMMDD_HHMMSS.db` (automatic) or `kpi_backup_YYYYMMDD_HHMMSS.db` (manual)
+
+## Auto-Update System
+
+KPI Tool includes an automatic update system that checks for new versions on startup:
+
+### How It Works
+
+1. **Automatic Checking**: On app startup, the app checks GitHub Releases API for new versions
+2. **Update Notification**: If a new version is available, a notification dialog appears with:
+   - New version number
+   - Release notes
+   - Download button
+3. **Automatic Backup**: Before downloading, the app automatically creates a database backup
+4. **Platform Detection**: Automatically finds the correct installer for your platform (`.dmg`, `.AppImage`, `.deb`, `.msi`)
+5. **Database Migrations**: After updating, database migrations run automatically to ensure compatibility
+
+### Update Process
+
+1. App detects new version → Shows update notification
+2. User clicks "Download Update" → Automatic backup created
+3. Download page opens in browser → User downloads and installs
+4. App restarts → Migrations run automatically
+5. Database version updated → App ready to use
+
+### Manual Update Check
+
+Updates are checked automatically on startup. To check manually, restart the app.
 
 ## Release Information
 
-**Current Version**: 0.1.0  
+**Current Version**: 0.2.0  
 **Supported Platforms**: macOS, Ubuntu/Linux, Windows  
 **Build Date**: December 2024
 
@@ -446,7 +493,9 @@ Pre-built binaries are available for:
 - **Ubuntu/Linux**: `.AppImage` (portable) or `.deb` (system package)
 - **Windows**: `.msi` installer
 
-Download from [GitHub Releases](releases) or build from source using the instructions above.
+Download from [GitHub Releases](https://github.com/Rantoniaina/kpi/releases) or build from source using the instructions above.
+
+**Note**: When you create a GitHub release with a new version tag, users will be automatically notified on the next app startup.
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for detailed release information and [RELEASE.md](RELEASE.md) for distribution instructions.
 

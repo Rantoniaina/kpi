@@ -70,13 +70,39 @@ export async function updateTicketStatus(
 
 export async function completeTicket(
   id: string,
-  actualHours?: number
+  actualHours?: number,
+  completionDate?: string
 ): Promise<Ticket> {
-  return invoke("complete_ticket", { id, actualHours });
+  return invoke("complete_ticket", { 
+    id, 
+    actualHours: actualHours ?? null,
+    completionDate: completionDate ?? null
+  });
 }
 
 export async function reopenTicket(id: string): Promise<Ticket> {
   return invoke("reopen_ticket", { id });
+}
+
+export async function updateCompletionDate(
+  id: string,
+  completionDate: string
+): Promise<Ticket> {
+  return invoke("update_completion_date", { id, completionDate });
+}
+
+export async function updateDueDate(
+  id: string,
+  dueDate: string
+): Promise<Ticket> {
+  return invoke("update_due_date", { id, dueDate });
+}
+
+export async function updateReopenCount(
+  id: string,
+  reopenCount: number
+): Promise<Ticket> {
+  return invoke("update_reopen_count", { id, reopenCount });
 }
 
 // Bug commands
@@ -104,15 +130,53 @@ export async function resolveBug(
   id: string,
   resolvedByDeveloperId?: string,
   fixTicketId?: string,
-  fixHours?: number
+  fixHours?: number,
+  resolvedDate?: string
 ): Promise<Bug> {
   // Ensure we pass null instead of undefined for Tauri/serde compatibility
   return invoke("resolve_bug", { 
     id, 
     resolvedByDeveloperId: resolvedByDeveloperId || null,
     fixTicketId: fixTicketId || null,
-    fixHours: fixHours ?? null
+    fixHours: fixHours ?? null,
+    resolvedDate: resolvedDate ?? null
   });
+}
+
+export async function updateResolutionDate(
+  id: string,
+  resolvedDate: string
+): Promise<Bug> {
+  return invoke("update_resolution_date", { id, resolvedDate });
+}
+
+// Utility commands
+export async function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
+}
+
+// Updater commands
+export async function getAppVersion(): Promise<string> {
+  return invoke("get_app_version");
+}
+
+export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | null> {
+  return invoke("check_for_updates", { currentVersion });
+}
+
+export async function updateAppVersion(version: string): Promise<void> {
+  return invoke("update_app_version", { version });
+}
+
+export async function backupBeforeUpdate(): Promise<string> {
+  return invoke("backup_before_update");
+}
+
+export interface UpdateInfo {
+  version: string;
+  url: string;
+  releaseNotes?: string;
+  publishedAt?: string;
 }
 
 // KPI commands

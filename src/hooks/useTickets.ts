@@ -23,7 +23,7 @@ interface UseTicketsReturn {
   createTicket: (input: CreateTicketInput) => Promise<Ticket>;
   updateTicket: (input: UpdateTicketInput) => Promise<Ticket>;
   updateTicketStatus: (id: string, status: TicketStatus) => Promise<Ticket>;
-  completeTicket: (id: string, actualHours?: number) => Promise<Ticket>;
+  completeTicket: (id: string, actualHours?: number, completionDate?: string) => Promise<Ticket>;
   reopenTicket: (id: string) => Promise<Ticket>;
 }
 
@@ -127,9 +127,9 @@ export function useTickets(options: UseTicketsOptions = {}): UseTicketsReturn {
   );
 
   const completeTicket = useCallback(
-    async (id: string, actualHours?: number): Promise<Ticket> => {
+    async (id: string, actualHours?: number, completionDate?: string): Promise<Ticket> => {
       try {
-        const ticket = await completeTicketApi(id, actualHours);
+        const ticket = await completeTicketApi(id, actualHours, completionDate);
         await refresh();
         toast({
           title: "Ticket completed",

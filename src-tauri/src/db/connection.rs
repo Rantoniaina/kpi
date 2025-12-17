@@ -48,11 +48,12 @@ pub fn init_db() -> Result<Connection, String> {
 
     // Create the app data directory if it doesn't exist
     if !app_dir.exists() {
-        fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create app directory: {}", e))?;
+        fs::create_dir_all(&app_dir)
+            .map_err(|e| format!("Failed to create app directory: {}", e))?;
     }
 
     let db_path = get_db_path();
-    
+
     // Check if database file exists and is corrupted
     if db_path.exists() {
         // Try to open and verify integrity
@@ -62,7 +63,7 @@ pub fn init_db() -> Result<Connection, String> {
                 let integrity_check: String = conn
                     .query_row("PRAGMA integrity_check", [], |row| row.get(0))
                     .unwrap_or_else(|_| "ok".to_string());
-                
+
                 if integrity_check != "ok" {
                     return Err(format!(
                         "Database corruption detected. Please restore from a backup. Error: {}",
@@ -79,7 +80,7 @@ pub fn init_db() -> Result<Connection, String> {
             }
         }
     }
-    
+
     let conn =
         Connection::open(&db_path).map_err(|e| {
             if e.to_string().contains("not a database") || e.to_string().contains("malformed") {
@@ -96,6 +97,14 @@ pub fn init_db() -> Result<Connection, String> {
     // Run migrations
     run_migrations(&conn)?;
 
+    // Ensure app version is set (migration 005 creates the table, but we ensure version is current)
+    let current_version = env!("CARGO_PKG_VERSION");
+    conn.execute(
+        "INSERT OR REPLACE INTO app_version (id, version, updated_at) VALUES (1, ?1, CURRENT_TIMESTAMP)",
+        [current_version],
+    )
+    .map_err(|e| format!("Failed to set app version: {}", e))?;
+
     Ok(conn)
 }
 
@@ -108,5 +117,3 @@ impl DbState {
         Ok(DbState(Mutex::new(conn)))
     }
 }
-
-

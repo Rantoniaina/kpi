@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
+import { DateTimeField } from "@/components/ui/datetime-picker";
 import {
   StatCard,
   TicketStatusBadge,
@@ -25,8 +26,11 @@ interface TicketCardProps {
   onOpenChange: (open: boolean) => void;
   onEdit: () => void;
   onStatusChange: (status: TicketStatus) => Promise<void>;
-  onComplete: (actualHours?: number) => Promise<void>;
+  onComplete: (actualHours?: number, completionDate?: string) => Promise<void>;
   onReopen: () => Promise<void>;
+  onUpdateCompletionDate?: (completionDate: string) => Promise<void>;
+  onUpdateDueDate?: (dueDate: string) => Promise<void>;
+  onUpdateReopenCount?: (reopenCount: number) => Promise<void>;
 }
 
 // Status workflow: what statuses can transition to what
@@ -62,16 +66,29 @@ export function TicketCard({
   onStatusChange,
   onComplete,
   onReopen,
+  onUpdateCompletionDate,
+  onUpdateDueDate,
+  onUpdateReopenCount,
 }: TicketCardProps) {
   const navigate = useNavigate();
   const { bugs } = useBugs({ ticketId: ticket.id });
   
   const [isCompleting, setIsCompleting] = useState(false);
   const [actualHours, setActualHours] = useState<string>("");
+  const [completionDate, setCompletionDate] = useState<string>("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  
+  // Edit dialogs state
+  const [showEditCompletionDate, setShowEditCompletionDate] = useState(false);
+  const [showEditDueDate, setShowEditDueDate] = useState(false);
+  const [showEditReopenCount, setShowEditReopenCount] = useState(false);
+  const [editCompletionDate, setEditCompletionDate] = useState<string>("");
+  const [editDueDate, setEditDueDate] = useState<string>("");
+  const [editReopenCount, setEditReopenCount] = useState<string>("");
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const overdue = isOverdue(ticket);
   const onTime = wasOnTime(ticket);
@@ -95,8 +112,11 @@ export function TicketCard({
     setIsCompleting(true);
     try {
       const hours = actualHours ? parseFloat(actualHours) : undefined;
-      await onComplete(hours);
+      const date = completionDate || undefined;
+      await onComplete(hours, date);
       setShowCompleteDialog(false);
+      setActualHours("");
+      setCompletionDate("");
     } finally {
       setIsCompleting(false);
     }
@@ -252,6 +272,57 @@ export function TicketCard({
             </div>
           </div>
 
+          {/* Edit Fields Section */}
+          {(onUpdateCompletionDate || onUpdateDueDate || onUpdateReopenCount) && (
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-medium mb-3">Edit Fields</h3>
+              <div className="flex flex-wrap gap-2">
+                {ticket.status === "completed" && ticket.completedDate && onUpdateCompletionDate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Convert database format to ISO for picker
+                      const dbDate = ticket.completedDate!;
+                      const isoDate = dbDate.includes("T") ? dbDate : dbDate.replace(" ", "T");
+                      setEditCompletionDate(isoDate);
+                      setShowEditCompletionDate(true);
+                    }}
+                  >
+                    📅 Edit Completion Date
+                  </Button>
+                )}
+                {onUpdateDueDate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Convert database format to ISO for picker
+                      const dbDate = ticket.dueDate;
+                      const isoDate = dbDate.includes("T") ? dbDate : dbDate.replace(" ", "T");
+                      setEditDueDate(isoDate);
+                      setShowEditDueDate(true);
+                    }}
+                  >
+                    📅 Edit Due Date
+                  </Button>
+                )}
+                {onUpdateReopenCount && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditReopenCount(ticket.reopenCount.toString());
+                      setShowEditReopenCount(true);
+                    }}
+                  >
+                    🔄 Edit Reopen Count
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Quick Actions */}
           <div className="flex flex-wrap gap-2 border-t pt-4">
             <Button variant="outline" size="sm" onClick={onEdit}>
@@ -315,6 +386,12 @@ export function TicketCard({
                   : "How many hours did this ticket take?"
               }
             />
+            <DateTimeField
+              label="Completion Date & Time"
+              value={completionDate}
+              onChange={(value) => setCompletionDate(value || "")}
+              description="When was this ticket completed? (defaults to now if not specified)"
+            />
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
@@ -346,6 +423,138 @@ export function TicketCard({
         onConfirm={handleReopen}
         loading={isReopening}
       />
+
+      {/* Edit Completion Date Dialog */}
+      {onUpdateCompletionDate && (
+        <Dialog open={showEditCompletionDate} onOpenChange={setShowEditCompletionDate}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Edit Completion Date</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <DateTimeField
+                label="Completion Date & Time"
+                value={editCompletionDate}
+                onChange={(value) => setEditCompletionDate(value || "")}
+                description="Update when this ticket was completed"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditCompletionDate(false)}
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!editCompletionDate) return;
+                    setIsUpdating(true);
+                    try {
+                      await onUpdateCompletionDate(editCompletionDate);
+                      setShowEditCompletionDate(false);
+                    } finally {
+                      setIsUpdating(false);
+                    }
+                  }}
+                  disabled={isUpdating || !editCompletionDate}
+                >
+                  {isUpdating ? "Updating..." : "Update"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Due Date Dialog */}
+      {onUpdateDueDate && (
+        <Dialog open={showEditDueDate} onOpenChange={setShowEditDueDate}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Edit Due Date</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <DateTimeField
+                label="Due Date & Time"
+                value={editDueDate}
+                onChange={(value) => setEditDueDate(value || "")}
+                description="Update when this ticket is due"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditDueDate(false)}
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!editDueDate) return;
+                    setIsUpdating(true);
+                    try {
+                      await onUpdateDueDate(editDueDate);
+                      setShowEditDueDate(false);
+                    } finally {
+                      setIsUpdating(false);
+                    }
+                  }}
+                  disabled={isUpdating || !editDueDate}
+                >
+                  {isUpdating ? "Updating..." : "Update"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Reopen Count Dialog */}
+      {onUpdateReopenCount && (
+        <Dialog open={showEditReopenCount} onOpenChange={setShowEditReopenCount}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Edit Reopen Count</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <TextField
+                label="Reopen Count"
+                type="number"
+                value={editReopenCount}
+                onChange={(e) => setEditReopenCount(e.target.value)}
+                placeholder="0"
+                description="Number of times this ticket has been reopened"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditReopenCount(false)}
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    const count = parseInt(editReopenCount, 10);
+                    if (isNaN(count) || count < 0) return;
+                    setIsUpdating(true);
+                    try {
+                      await onUpdateReopenCount(count);
+                      setShowEditReopenCount(false);
+                    } finally {
+                      setIsUpdating(false);
+                    }
+                  }}
+                  disabled={isUpdating || isNaN(parseInt(editReopenCount, 10)) || parseInt(editReopenCount, 10) < 0}
+                >
+                  {isUpdating ? "Updating..." : "Update"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

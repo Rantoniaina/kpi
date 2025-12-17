@@ -1,0 +1,22 @@
+# Default owners for the entire repository
+* @Rantoniaina
+
+# Rust backend code
+/src-tauri/ @Rantoniaina
+
+# Frontend React code
+/src/ @Rantoniaina
+
+# Configuration files
+*.toml @Rantoniaina
+*.json @Rantoniaina
+tsconfig.json @Rantoniaina
+vite.config.ts @Rantoniaina
+
+# Documentation
+*.md @Rantoniaina
+/docs/ @Rantoniaina
+
+# GitHub workflows
+/.github/ @Rantoniaina
+

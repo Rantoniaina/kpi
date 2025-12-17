@@ -1,8 +1,39 @@
 use crate::db::DbState;
 use crate::models::{CreateTicketInput, Ticket, TicketComplexity, TicketStatus, UpdateTicketInput};
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, NaiveDateTime, Utc};
 use tauri::State;
 use uuid::Uuid;
+
+/// Helper to normalize a date string to DATETIME format
+/// Accepts both YYYY-MM-DD and YYYY-MM-DDTHH:mm:ss formats
+/// Returns YYYY-MM-DD HH:mm:ss format for SQLite DATETIME
+fn normalize_to_datetime(date_str: &str) -> Result<String, String> {
+    // If it already contains time (T separator), parse as datetime
+    if date_str.contains('T') {
+        // Parse ISO format: YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss
+        let parts: Vec<&str> = date_str.split('T').collect();
+        if parts.len() == 2 {
+            let date_part = parts[0];
+            let time_part = parts[1];
+            // Ensure time part has seconds
+            let time_with_seconds = if time_part.len() == 5 {
+                format!("{}:00", time_part) // Add seconds if missing
+            } else if time_part.len() >= 8 {
+                time_part[..8].to_string() // Take first 8 chars (HH:mm:ss)
+            } else {
+                format!("{}:00:00", time_part) // Fallback
+            };
+            return Ok(format!("{} {}", date_part, time_with_seconds));
+        }
+    }
+    
+    // If it's just a date (YYYY-MM-DD), add default time (00:00:00)
+    if let Ok(_) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+        return Ok(format!("{} 00:00:00", date_str));
+    }
+    
+    Err(format!("Invalid date format: {}", date_str))
+}
 
 /// Helper to parse a ticket from a database row
 pub fn parse_ticket_row(row: &rusqlite::Row) -> Result<Ticket, rusqlite::Error> {
@@ -52,7 +83,8 @@ pub fn create_ticket(
 
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
-    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let today = normalize_to_datetime(&Utc::now().format("%Y-%m-%d").to_string())?;
+    let due_date = normalize_to_datetime(&input.due_date)?;
 
     conn.execute(
         "INSERT INTO tickets (id, title, description, developer_id, assigned_date, due_date, status, estimated_hours, complexity, reopen_count, created_at, updated_at)
@@ -63,7 +95,7 @@ pub fn create_ticket(
             &input.description,
             &input.developer_id,
             &today,
-            &input.due_date,
+            &due_date,
             TicketStatus::Assigned.as_str(),
             &input.estimated_hours,
             complexity.as_str(),
@@ -80,7 +112,7 @@ pub fn create_ticket(
         description: input.description,
         developer_id: input.developer_id,
         assigned_date: today,
-        due_date: input.due_date,
+        due_date,
         completed_date: None,
         status: TicketStatus::Assigned,
         estimated_hours: input.estimated_hours,
@@ -173,7 +205,11 @@ pub fn update_ticket(
     let title = input.title.unwrap_or(current.title);
     let description = input.description.or(current.description);
     let developer_id = input.developer_id.unwrap_or(current.developer_id);
-    let due_date = input.due_date.unwrap_or(current.due_date);
+        let due_date = if let Some(dd) = input.due_date {
+            normalize_to_datetime(&dd)?
+        } else {
+            current.due_date
+        };
     let status = match input.status {
         Some(s) => TicketStatus::from_str(&s)?,
         None => current.status,
@@ -243,6 +279,7 @@ pub fn complete_ticket(
     state: State<DbState>,
     id: String,
     actual_hours: Option<f64>,
+    completion_date: Option<String>,
 ) -> Result<Ticket, String> {
     let conn = state.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
 
@@ -250,15 +287,26 @@ pub fn complete_ticket(
     let current = get_ticket_by_id_internal(&conn, &id)?;
 
     let now = Utc::now().to_rfc3339();
-    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let completed_datetime_str = if let Some(date_str) = completion_date {
+        normalize_to_datetime(&date_str)?
+    } else {
+        normalize_to_datetime(&Utc::now().format("%Y-%m-%d").to_string())?
+    };
 
-    // Check if completed on time
-    let due_date = NaiveDate::parse_from_str(&current.due_date, "%Y-%m-%d")
+    // Check if completed on time (compare datetime values)
+    let due_datetime = NaiveDateTime::parse_from_str(&current.due_date, "%Y-%m-%d %H:%M:%S")
+        .or_else(|_| NaiveDateTime::parse_from_str(&current.due_date, "%Y-%m-%dT%H:%M:%S"))
+        .or_else(|_| {
+            // Fallback: try parsing as date and add time
+            NaiveDate::parse_from_str(&current.due_date, "%Y-%m-%d")
+                .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
+        })
         .map_err(|e| format!("Invalid due date format: {}", e))?;
-    let completed_date = NaiveDate::parse_from_str(&today, "%Y-%m-%d")
+    
+    let completed_datetime = NaiveDateTime::parse_from_str(&completed_datetime_str, "%Y-%m-%d %H:%M:%S")
         .map_err(|e| format!("Invalid date format: {}", e))?;
     
-    let _was_on_time = completed_date <= due_date;
+    let _was_on_time = completed_datetime <= due_datetime;
 
     // Accumulate actual hours: add new hours to existing hours
     let total_actual_hours = match (actual_hours, current.actual_hours) {
@@ -271,7 +319,7 @@ pub fn complete_ticket(
         "UPDATE tickets SET status = ?1, completed_date = ?2, actual_hours = ?3, updated_at = ?4 WHERE id = ?5",
         (
             TicketStatus::Completed.as_str(),
-            &today,
+            &completed_datetime_str,
             &total_actual_hours,
             &now,
             &id,
@@ -286,7 +334,7 @@ pub fn complete_ticket(
         developer_id: current.developer_id,
         assigned_date: current.assigned_date,
         due_date: current.due_date,
-        completed_date: Some(today),
+        completed_date: Some(completed_datetime_str),
         status: TicketStatus::Completed,
         estimated_hours: current.estimated_hours,
         actual_hours: total_actual_hours,
@@ -335,4 +383,79 @@ pub fn reopen_ticket(state: State<DbState>, id: String) -> Result<Ticket, String
         created_at: current.created_at,
         updated_at: now,
     })
+}
+
+/// Update completion date/time for a ticket (triggers KPI recalculation)
+#[tauri::command]
+pub fn update_completion_date(
+    state: State<DbState>,
+    id: String,
+    completion_date: String,
+) -> Result<Ticket, String> {
+    let conn = state.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+
+    // Get current ticket
+    let _current = get_ticket_by_id_internal(&conn, &id)?;
+
+    let now = Utc::now().to_rfc3339();
+    let completed_datetime_str = normalize_to_datetime(&completion_date)?;
+
+    conn.execute(
+        "UPDATE tickets SET completed_date = ?1, updated_at = ?2 WHERE id = ?3",
+        (&completed_datetime_str, &now, &id),
+    )
+    .map_err(|e| format!("Failed to update completion date: {}", e))?;
+
+    get_ticket_by_id_internal(&conn, &id)
+}
+
+/// Update due date for a ticket (triggers KPI recalculation)
+#[tauri::command]
+pub fn update_due_date(
+    state: State<DbState>,
+    id: String,
+    due_date: String,
+) -> Result<Ticket, String> {
+    let conn = state.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+
+    // Get current ticket
+    let _current = get_ticket_by_id_internal(&conn, &id)?;
+
+    let now = Utc::now().to_rfc3339();
+    let due_datetime_str = normalize_to_datetime(&due_date)?;
+
+    conn.execute(
+        "UPDATE tickets SET due_date = ?1, updated_at = ?2 WHERE id = ?3",
+        (&due_datetime_str, &now, &id),
+    )
+    .map_err(|e| format!("Failed to update due date: {}", e))?;
+
+    get_ticket_by_id_internal(&conn, &id)
+}
+
+/// Update reopen count for a ticket (triggers KPI recalculation)
+#[tauri::command]
+pub fn update_reopen_count(
+    state: State<DbState>,
+    id: String,
+    reopen_count: i32,
+) -> Result<Ticket, String> {
+    let conn = state.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+
+    // Get current ticket
+    let _current = get_ticket_by_id_internal(&conn, &id)?;
+
+    if reopen_count < 0 {
+        return Err("Reopen count cannot be negative".to_string());
+    }
+
+    let now = Utc::now().to_rfc3339();
+
+    conn.execute(
+        "UPDATE tickets SET reopen_count = ?1, updated_at = ?2 WHERE id = ?3",
+        (reopen_count, &now, &id),
+    )
+    .map_err(|e| format!("Failed to update reopen count: {}", e))?;
+
+    get_ticket_by_id_internal(&conn, &id)
 }

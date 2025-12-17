@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
-import { DateField } from "@/components/ui/date-picker";
+import { EnhancedDateField } from "@/components/ui/enhanced-date-picker";
 import { DeveloperRoleSelect } from "@/components/ui/select-field";
 import type { CreateDeveloperInput, Developer, UpdateDeveloperInput } from "@/types";
 
@@ -168,10 +168,10 @@ export function DeveloperFormDialog({
             description="Optional team or department"
           />
 
-          <DateField
+          <EnhancedDateField
             label="Start Date"
             value={startDateValue}
-            onChange={(value) => setValue("startDate", value, { shouldValidate: true })}
+            onChange={(value) => setValue("startDate", value || "", { shouldValidate: true })}
             error={errors.startDate?.message}
             max={new Date().toISOString().split("T")[0]}
           />

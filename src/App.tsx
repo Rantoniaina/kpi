@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
 import { PageLoading } from "@/components/ui/loading-spinner";
+import { UpdateChecker } from "@/components/UpdateChecker";
 
 // Lazy load pages for better performance
 const Dashboard = lazy(() => import("@/pages/Dashboard").then(m => ({ default: m.Dashboard })));
@@ -70,6 +71,7 @@ export function App() {
           </Route>
         </Routes>
         <Toaster />
+        <UpdateChecker />
       </BrowserRouter>
     </ErrorBoundary>
   );

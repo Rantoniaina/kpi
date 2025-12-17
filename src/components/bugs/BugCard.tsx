@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui";
+import { DateTimeField } from "@/components/ui/datetime-picker";
 import {
   Select,
   SelectContent,
@@ -33,8 +34,9 @@ interface BugCardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: () => void;
-  onResolve: (resolvedByDeveloperId?: string, fixTicketId?: string, fixHours?: number) => Promise<void>;
+  onResolve: (resolvedByDeveloperId?: string, fixTicketId?: string, fixHours?: number, resolvedDate?: string) => Promise<void>;
   onReclassify: (bugType: BugType) => Promise<void>;
+  onUpdateResolutionDate?: (resolvedDate: string) => Promise<void>;
 }
 
 // Bug type definitions with descriptions and KPI impact
@@ -131,6 +133,7 @@ export function BugCard({
   onEdit,
   onResolve,
   onReclassify,
+  onUpdateResolutionDate,
 }: BugCardProps) {
   const navigate = useNavigate();
   const [showResolveDialog, setShowResolveDialog] = useState(false);
@@ -143,6 +146,12 @@ export function BugCard({
   const [selectedResolverId, setSelectedResolverId] = useState<string>("");
   const [selectedFixTicketId, setSelectedFixTicketId] = useState<string>("");
   const [fixHours, setFixHours] = useState<string>("");
+  const [resolvedDate, setResolvedDate] = useState<string>("");
+  
+  // Edit resolution date state
+  const [showEditResolutionDate, setShowEditResolutionDate] = useState(false);
+  const [editResolutionDate, setEditResolutionDate] = useState<string>("");
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const currentBugType = bugTypes.find((t) => t.value === bug.bugType);
 
@@ -160,15 +169,18 @@ export function BugCard({
     setIsResolving(true);
     try {
       const hours = fixHours ? parseFloat(fixHours) : undefined;
+      const date = resolvedDate || undefined;
       await onResolve(
         selectedResolverId || undefined,
         selectedFixTicketId || undefined,
-        hours
+        hours,
+        date
       );
       setShowResolveDialog(false);
       setSelectedResolverId("");
       setSelectedFixTicketId("");
       setFixHours("");
+      setResolvedDate("");
     } finally {
       setIsResolving(false);
     }
@@ -313,6 +325,21 @@ export function BugCard({
             <Button variant="outline" size="sm" onClick={onEdit}>
               ✏️ Edit
             </Button>
+            {bug.isResolved && bug.resolvedDate && onUpdateResolutionDate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Convert database format to ISO for picker
+                  const dbDate = bug.resolvedDate!;
+                  const isoDate = dbDate.includes("T") ? dbDate : dbDate.replace(" ", "T");
+                  setEditResolutionDate(isoDate);
+                  setShowEditResolutionDate(true);
+                }}
+              >
+                📅 Edit Resolution Date
+              </Button>
+            )}
             {ticket && (
               <Button
                 variant="outline"
@@ -436,6 +463,13 @@ export function BugCard({
                 </div>
               </div>
             )}
+
+            <DateTimeField
+              label="Resolution Date & Time"
+              value={resolvedDate}
+              onChange={(value) => setResolvedDate(value || "")}
+              description="When was this bug resolved? (defaults to now if not specified)"
+            />
           </div>
 
           <DialogFooter>
@@ -513,6 +547,49 @@ export function BugCard({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Resolution Date Dialog */}
+      {onUpdateResolutionDate && (
+        <Dialog open={showEditResolutionDate} onOpenChange={setShowEditResolutionDate}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Edit Resolution Date</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <DateTimeField
+                label="Resolution Date & Time"
+                value={editResolutionDate}
+                onChange={(value) => setEditResolutionDate(value || "")}
+                description="Update when this bug was resolved"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditResolutionDate(false)}
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!editResolutionDate) return;
+                    setIsUpdating(true);
+                    try {
+                      await onUpdateResolutionDate(editResolutionDate);
+                      setShowEditResolutionDate(false);
+                    } finally {
+                      setIsUpdating(false);
+                    }
+                  }}
+                  disabled={isUpdating || !editResolutionDate}
+                >
+                  {isUpdating ? "Updating..." : "Update"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

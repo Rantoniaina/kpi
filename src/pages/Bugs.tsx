@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { BugFormDialog, BugCard } from "@/components/bugs";
 import type { Bug, BugSeverity, BugType, CreateBugInput, UpdateBugInput } from "@/types";
+import { updateResolutionDate } from "@/lib/tauri";
 
 // Helper to format date for display
 function formatDate(dateStr: string): string {
@@ -273,9 +274,9 @@ export function Bugs() {
     }
   };
 
-  const handleResolve = async (resolvedByDeveloperId?: string, fixTicketId?: string, fixHours?: number) => {
+  const handleResolve = async (resolvedByDeveloperId?: string, fixTicketId?: string, fixHours?: number, resolvedDate?: string) => {
     if (!selectedBug) return;
-    await resolveBug(selectedBug.id, resolvedByDeveloperId, fixTicketId, fixHours);
+    await resolveBug(selectedBug.id, resolvedByDeveloperId, fixTicketId, fixHours, resolvedDate);
     setIsCardOpen(false);
     setSelectedBug(undefined);
   };
@@ -295,6 +296,13 @@ export function Bugs() {
     setIsCardOpen(false);
     setEditingBug(selectedBug);
     setIsFormOpen(true);
+  };
+
+  const handleUpdateResolutionDate = async (resolvedDate: string) => {
+    if (!selectedBug) return;
+    const updated = await updateResolutionDate(selectedBug.id, resolvedDate);
+    setSelectedBug(updated);
+    await refresh();
   };
 
   if (error) {
@@ -528,6 +536,7 @@ export function Bugs() {
           onEdit={handleEditFromCard}
           onResolve={handleResolve}
           onReclassify={handleReclassify}
+          onUpdateResolutionDate={handleUpdateResolutionDate}
         />
       )}
     </div>

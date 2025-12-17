@@ -274,6 +274,7 @@ pub fn resolve_bug(
     resolved_by_developer_id: Option<String>,
     fix_ticket_id: Option<String>,
     fix_hours: Option<f64>,
+    resolved_date: Option<String>,
 ) -> Result<Bug, String> {
     let conn = state.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
 
@@ -285,7 +286,29 @@ pub fn resolve_bug(
     }
 
     let now = Utc::now().to_rfc3339();
-    let today = Utc::now().format("%Y-%m-%d").to_string();
+    // Use provided resolved_date or default to today
+    let resolved_date_str = if let Some(date_str) = resolved_date {
+        // Normalize to DATETIME format
+        if date_str.contains('T') {
+            let parts: Vec<&str> = date_str.split('T').collect();
+            if parts.len() == 2 {
+                let time_part = if parts[1].len() == 5 {
+                    format!("{}:00", parts[1])
+                } else if parts[1].len() >= 8 {
+                    parts[1][..8].to_string()
+                } else {
+                    format!("{}:00:00", parts[1])
+                };
+                format!("{} {}", parts[0], time_part)
+            } else {
+                Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+            }
+        } else {
+            format!("{} 00:00:00", date_str)
+        }
+    } else {
+        Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+    };
 
     // If we have a fix ticket, complete it and optionally reassign to resolver
     if let Some(ref ticket_id) = fix_ticket_id {
@@ -306,18 +329,18 @@ pub fn resolve_bug(
         };
 
         // If we have a resolver, reassign the ticket to them
-        // Also mark the ticket as completed with today's date
+        // Also mark the ticket as completed with resolved date
         if let Some(ref resolver_id) = resolved_by_developer_id {
             conn.execute(
                 "UPDATE tickets SET developer_id = ?1, actual_hours = ?2, status = 'completed', completed_date = ?3, updated_at = ?4 WHERE id = ?5",
-                (resolver_id, new_hours, &today, &now, ticket_id),
+                (resolver_id, new_hours, &resolved_date_str, &now, ticket_id),
             )
             .map_err(|e| format!("Failed to complete fix ticket: {}", e))?;
         } else {
             // No resolver specified, just complete the ticket with hours
             conn.execute(
                 "UPDATE tickets SET actual_hours = ?1, status = 'completed', completed_date = ?2, updated_at = ?3 WHERE id = ?4",
-                (new_hours, &today, &now, ticket_id),
+                (new_hours, &resolved_date_str, &now, ticket_id),
             )
             .map_err(|e| format!("Failed to complete fix ticket: {}", e))?;
         }
@@ -328,7 +351,7 @@ pub fn resolve_bug(
         "UPDATE bugs SET is_resolved = TRUE, resolved_date = ?1, 
          resolved_by_developer_id = ?2, fix_ticket_id = ?3, updated_at = ?4 
          WHERE id = ?5",
-        (&today, &resolved_by_developer_id, &fix_ticket_id, &now, &id),
+        (&resolved_date_str, &resolved_by_developer_id, &fix_ticket_id, &now, &id),
     )
     .map_err(|e| format!("Failed to resolve bug: {}", e))?;
 
@@ -342,10 +365,55 @@ pub fn resolve_bug(
         severity: current.severity,
         bug_type: current.bug_type,
         is_resolved: true,
-        resolved_date: Some(today),
+        resolved_date: Some(resolved_date_str),
         resolved_by_developer_id,
         fix_ticket_id,
         created_at: current.created_at,
         updated_at: now,
     })
+}
+
+/// Update resolution date/time for a bug (triggers KPI recalculation)
+#[tauri::command]
+pub fn update_resolution_date(
+    state: State<DbState>,
+    id: String,
+    resolved_date: String,
+) -> Result<Bug, String> {
+    let conn = state.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+
+    // Get current bug
+    let current = get_bug_by_id_internal(&conn, &id)?;
+
+    if !current.is_resolved {
+        return Err("Bug must be resolved before updating resolution date".to_string());
+    }
+
+    let now = Utc::now().to_rfc3339();
+    // Normalize to DATETIME format
+    let resolved_date_str = if resolved_date.contains('T') {
+        let parts: Vec<&str> = resolved_date.split('T').collect();
+        if parts.len() == 2 {
+            let time_part = if parts[1].len() == 5 {
+                format!("{}:00", parts[1])
+            } else if parts[1].len() >= 8 {
+                parts[1][..8].to_string()
+            } else {
+                format!("{}:00:00", parts[1])
+            };
+            format!("{} {}", parts[0], time_part)
+        } else {
+            return Err("Invalid date format".to_string());
+        }
+    } else {
+        format!("{} 00:00:00", resolved_date)
+    };
+
+    conn.execute(
+        "UPDATE bugs SET resolved_date = ?1, updated_at = ?2 WHERE id = ?3",
+        (&resolved_date_str, &now, &id),
+    )
+    .map_err(|e| format!("Failed to update resolution date: {}", e))?;
+
+    get_bug_by_id_internal(&conn, &id)
 }

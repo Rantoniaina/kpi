@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextField, TextAreaField } from "@/components/ui/text-field";
-import { DateField } from "@/components/ui/date-picker";
+import { DateTimeField } from "@/components/ui/datetime-picker";
 import { SelectField, TicketComplexitySelect } from "@/components/ui/select-field";
 import type { CreateTicketInput, Ticket, UpdateTicketInput, Developer } from "@/types";
 
@@ -21,7 +21,9 @@ const ticketSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title is too long"),
   description: z.string().optional(),
   developerId: z.string().min(1, "Developer is required"),
-  dueDate: z.string().min(1, "Due date is required"),
+  dueDate: z.string().refine((val) => val.trim().length > 0, {
+    message: "Due date is required",
+  }),
   complexity: z.enum(["low", "medium", "high", "critical"], {
     message: "Complexity is required",
   }),
@@ -46,9 +48,6 @@ export function TicketFormDialog({
   developers,
 }: TicketFormDialogProps) {
   const isEditMode = !!ticket;
-
-  // Get tomorrow's date for min date
-  const today = new Date().toISOString().split("T")[0];
 
   const {
     register,
@@ -81,6 +80,21 @@ export function TicketFormDialog({
   const developerIdValue = watch("developerId");
   const complexityValue = watch("complexity");
   const dueDateValue = watch("dueDate");
+  
+  // Convert database datetime format (YYYY-MM-DD HH:mm:ss) to ISO format (YYYY-MM-DDTHH:mm:ss) for DateTimePicker
+  const formatDueDateForPicker = (dateStr: string | undefined): string => {
+    if (!dateStr) return "";
+    // If it's already in ISO format, return as is
+    if (dateStr.includes("T")) return dateStr;
+    // Convert from "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DD" to "YYYY-MM-DDTHH:mm:ss"
+    if (dateStr.includes(" ")) {
+      return dateStr.replace(" ", "T");
+    }
+    // If it's just a date, add default time
+    return `${dateStr}T00:00:00`;
+  };
+  
+  const formattedDueDate = formatDueDateForPicker(dueDateValue);
 
   // Reset form when ticket changes
   useEffect(() => {
@@ -179,12 +193,15 @@ export function TicketFormDialog({
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <DateField
-              label="Due Date"
-              value={dueDateValue}
-              onChange={(value) => setValue("dueDate", value, { shouldValidate: true })}
+            <DateTimeField
+              label="Due Date & Time"
+              value={formattedDueDate}
+              onChange={(value) => {
+                // Convert ISO format back to database format if needed, or keep ISO format
+                // The backend normalize_to_datetime handles both formats
+                setValue("dueDate", value || "", { shouldValidate: true });
+              }}
               error={errors.dueDate?.message}
-              min={isEditMode ? undefined : today}
             />
 
             <TicketComplexitySelect

@@ -171,10 +171,10 @@ interface Ticket {
   description?: string;
   developerId: string;
 
-  // Timing
-  assignedDate: Date;
-  dueDate: Date;
-  completedDate?: Date;
+  // Timing (all include time for precise calculations)
+  assignedDate: Date; // Includes time
+  dueDate: Date; // Includes time (critical for on-time calculation)
+  completedDate?: Date; // Includes time (critical for delivery metrics)
 
   // Status
   status: 'assigned' | 'in_progress' | 'review' | 'completed' | 'reopened';
@@ -185,8 +185,8 @@ interface Ticket {
   complexity: 'low' | 'medium' | 'high' | 'critical';
 
   // Tracking
-  wasOnTime: boolean; // Calculated: completedDate <= dueDate
-  reopenCount: number; // How many times ticket was reopened
+  wasOnTime: boolean; // Calculated: completedDate <= dueDate (time-aware comparison)
+  reopenCount: number; // How many times ticket was reopened (editable)
 
   createdAt: Date;
   updatedAt: Date;
@@ -221,7 +221,7 @@ interface Bug {
   // third_party: External dependency issues
 
   isResolved: boolean;
-  resolvedDate?: Date;
+  resolvedDate?: Date; // Includes time for resolution tracking
 
   createdAt: Date;
   updatedAt: Date;
@@ -284,14 +284,16 @@ CREATE TABLE developers (
 );
 
 -- Tickets table
+-- Note: assigned_date, due_date, and completed_date use DATETIME to support time precision
+-- This is important for accurate delivery calculations (on-time vs late)
 CREATE TABLE tickets (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
     developer_id TEXT NOT NULL,
-    assigned_date DATE NOT NULL,
-    due_date DATE NOT NULL,
-    completed_date DATE,
+    assigned_date DATETIME NOT NULL,  -- Changed from DATE to DATETIME
+    due_date DATETIME NOT NULL,        -- Changed from DATE to DATETIME
+    completed_date DATETIME,           -- Changed from DATE to DATETIME
     status TEXT CHECK(status IN ('assigned', 'in_progress', 'review', 'completed', 'reopened')) NOT NULL,
     estimated_hours REAL,
     actual_hours REAL,
@@ -303,6 +305,7 @@ CREATE TABLE tickets (
 );
 
 -- Bugs table
+-- Note: resolved_date uses DATETIME for consistency and time tracking
 CREATE TABLE bugs (
     id TEXT PRIMARY KEY,
     ticket_id TEXT NOT NULL,
@@ -313,7 +316,7 @@ CREATE TABLE bugs (
     severity TEXT CHECK(severity IN ('low', 'medium', 'high', 'critical')) DEFAULT 'medium',
     bug_type TEXT CHECK(bug_type IN ('developer_error', 'conceptual', 'requirement_change', 'environment', 'third_party')) NOT NULL,
     is_resolved BOOLEAN DEFAULT FALSE,
-    resolved_date DATE,
+    resolved_date DATETIME,            -- Changed from DATE to DATETIME
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ticket_id) REFERENCES tickets(id),
@@ -445,6 +448,8 @@ Compare current month's overallScore with previous 3 months average:
 - Set working days (exclude weekends/holidays)
 - Backup/Restore database
 - Import/Export data
+- View changelog (click version number)
+- Report bug (opens GitHub issue creation)
 
 ---
 
@@ -507,6 +512,43 @@ macOS: ~/Library/Application Support/kpi-tool/
 
 ---
 
+## Changelog & Version Management
+
+### Changelog File
+
+- **Location**: `CHANGELOG.md` in project root
+- **Format**: Markdown with version sections
+- **Display**: Clicking version number in Settings opens `ChangelogDialog`
+- **Content**: Version history, new features, bug fixes, breaking changes
+
+### Version Display
+
+- Version shown in Settings "About" section
+- Clickable to open changelog dialog
+- Format: `v0.1.0` (semantic versioning)
+
+---
+
+## Bug Reporting Integration
+
+### GitHub Issue Creation
+
+- **Button Location**: Settings page
+- **Action**: Opens browser to GitHub issue creation page
+- **Pre-filled Template**: Includes app version, OS, and issue type
+- **Repository**: Configurable in app constants/config
+
+### Issue Template Fields
+
+- App version
+- Operating system
+- Description
+- Steps to reproduce
+- Expected vs actual behavior
+- Screenshots (user can attach)
+
+---
+
 ## Development Setup
 
 ```bash
@@ -524,6 +566,88 @@ npm run tauri dev
 # Build for production
 npm run tauri build
 ```
+
+---
+
+## Date/Time Handling
+
+### Database Storage
+
+All date/time fields use `DATETIME` type in SQLite to support time precision:
+
+- **assigned_date**: When ticket was assigned (includes time)
+- **due_date**: When ticket is due (includes time for accurate on-time calculation)
+- **completed_date**: When ticket was completed (includes time for accurate delivery metrics)
+- **resolved_date**: When bug was resolved (includes time)
+
+### Date/Time Input Components
+
+- **DatePicker**: Enhanced with month/year navigation for rapid date selection
+- **DateTimePicker**: Combined date + time picker for precise timestamp selection
+- **Historical Data**: Allows past due dates when creating tickets for historical data entry
+
+### KPI Recalculation Triggers
+
+The following operations trigger automatic KPI recalculation:
+
+1. **Update completion date/time** - Recalculates `wasOnTime` and delivery score
+2. **Update due date** - Recalculates `wasOnTime` for all affected tickets
+3. **Update reopen count** - Recalculates delivery score (reopen penalty)
+4. **Update resolution date/time** - May affect quality score if bug type changes
+5. **Mark ticket as completed** - Full recalculation of delivery metrics
+6. **Mark bug as resolved** - May affect quality score
+
+**Implementation Note**: When dates/counts are updated, affected monthly KPIs should be invalidated and regenerated on next report generation.
+
+---
+
+## Auto-Update System
+
+### Architecture
+
+The application uses Tauri's built-in auto-updater for seamless version updates:
+
+1. **Version Checking**: On app startup, check for updates via:
+
+   - GitHub Releases API (for public repos)
+   - Custom update server endpoint
+   - Update manifest file
+
+2. **Update Flow**:
+
+   ```
+   App Start → Check Version → New Version Available?
+   ├─ No → Continue normally
+   └─ Yes → Show Update Notification → Download Update → Install → Restart
+   ```
+
+3. **Data Safety**:
+
+   - Automatic database backup before update
+   - Database migrations run automatically on update
+   - Rollback mechanism if update fails
+
+4. **Migration Strategy**:
+   - Version stored in database: `app_version` table
+   - Migration scripts run in order based on version
+   - Backward compatibility maintained where possible
+
+### Update Server Configuration
+
+- **GitHub Releases**: Use GitHub Releases API to fetch latest version
+- **Update Manifest**: JSON file containing version info and download URLs
+- **Platform-Specific**: Different update URLs for macOS, Linux, Windows
+
+### Version Migration
+
+When updating from version X to Y:
+
+1. Backup current database
+2. Check `app_version` in database
+3. Run migrations for versions between X and Y
+4. Update `app_version` to Y
+5. Verify database integrity
+6. Continue app startup
 
 ---
 

@@ -443,28 +443,86 @@ A step-by-step guide to building the KPI Tool from scratch.
 - [x] Create GitHub release
 - [x] Upload `.dmg` artifact
 - [x] Write release notes
+- [x] Update version to 0.2.0
+- [x] Update CHANGELOG.md for 0.2.0
 
 **Deliverable:** Distributable macOS application
 
 ---
 
+## Phase 12: Enhancements & Improvements
+
+**Estimated Time: 6-8 hours**
+
+### 12.1 Date/Time Handling Improvements
+
+- [x] Fix date input validation bug (due date shows value but validation fails on create)
+- [x] Enhance DatePicker component with month/year navigation for rapid date selection
+- [x] Add time input support for assigned date and due date (currently only dates, but calculations use time)
+- [x] Update database schema to use DATETIME instead of DATE for assigned_date, due_date, completed_date
+- [x] Create DateTimePicker component (date + time selection)
+- [x] Allow past due dates when creating tickets (for historical data entry)
+- [x] Update validation to allow historical dates when appropriate
+
+### 12.2 Ticket/Bug Completion & Editing Enhancements
+
+- [x] Add date/time picker when marking ticket as completed
+- [x] Add date/time picker when marking bug as resolved
+- [x] Implement `update_completion_date` command for tickets (with KPI recalculation trigger)
+- [x] Implement `update_resolution_date` command for bugs (with KPI recalculation trigger)
+- [x] Add UI to edit completion date/time in ticket detail view
+- [x] Add UI to edit resolution date/time in bug detail view
+- [x] Implement `update_reopen_count` command for tickets
+- [x] Add UI to manually edit reopen count in ticket detail view
+- [x] Implement `update_due_date` command for tickets (with KPI recalculation trigger)
+- [x] Add UI to update due date in ticket detail view
+- [x] Ensure KPI recalculation runs automatically when dates/counts change
+
+### 12.3 Settings & UI Improvements
+
+- [x] Remove "App Preferences" section from Settings page (no options currently)
+- [x] Create `ChangelogDialog` component to display version changelog
+- [x] Add click handler to version number in Settings "About" section
+- [x] Create `CHANGELOG.md` file with version history
+- [x] Implement changelog parsing and display in dialog
+- [x] Add "Report Bug" button in Settings page
+- [x] Implement GitHub issue creation (open browser to GitHub issue creation page with pre-filled template)
+- [x] Add GitHub repository URL to config/constants
+
+### 12.4 Auto-Update System
+
+- [x] Research Tauri auto-updater capabilities
+- [x] Set up update server/endpoint (GitHub Releases API or custom server)
+- [x] Implement version checking on app startup
+- [x] Create update notification UI component
+- [x] Implement update download and installation flow
+- [x] Ensure database migrations run automatically on update
+- [ ] Test update from 0.1.0 to 0.2.0 without data loss
+- [x] Add version migration logic to handle schema changes
+- [x] Create backup before update (safety measure)
+
+**Deliverable:** Enhanced date/time handling, improved ticket/bug editing, cleaner settings, changelog viewer, bug reporting, and auto-update system
+
+---
+
 ## Summary Timeline
 
-| Phase     | Description             | Est. Time        |
-| --------- | ----------------------- | ---------------- |
-| 0         | Project Setup           | 1-2 hours        |
-| 1         | Core Data Layer         | 3-4 hours        |
-| 2         | UI Foundation           | 4-5 hours        |
-| 3         | Developer Management    | 3-4 hours        |
-| 4         | Ticket Management       | 5-6 hours        |
-| 5         | Bug Tracking            | 3-4 hours        |
-| 6         | KPI Calculation         | 4-5 hours        |
-| 7         | Reports & Visualization | 5-6 hours        |
-| 8         | Dashboard               | 3-4 hours        |
-| 9         | Settings                | 2-3 hours        |
-| 10        | Polish & Testing        | 3-4 hours        |
-| 11        | Build & Distribution    | 2-3 hours        |
-| **Total** |                         | **~40-50 hours** |
+| Phase     | Description                 | Est. Time        |
+| --------- | --------------------------- | ---------------- |
+| 0         | Project Setup               | 1-2 hours        |
+| 1         | Core Data Layer             | 3-4 hours        |
+| 2         | UI Foundation               | 4-5 hours        |
+| 3         | Developer Management        | 3-4 hours        |
+| 4         | Ticket Management           | 5-6 hours        |
+| 5         | Bug Tracking                | 3-4 hours        |
+| 6         | KPI Calculation             | 4-5 hours        |
+| 7         | Reports & Visualization     | 5-6 hours        |
+| 8         | Dashboard                   | 3-4 hours        |
+| 9         | Settings                    | 2-3 hours        |
+| 10        | Polish & Testing            | 3-4 hours        |
+| 11        | Build & Distribution        | 2-3 hours        |
+| 12        | Enhancements & Improvements | 6-8 hours        |
+| **Total** |                             | **~46-58 hours** |
 
 ---
 
@@ -475,7 +533,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
                                                     ↓
                               Phase 8 ← Phase 7 ← Phase 6
                                 ↓
-                            Phase 9 → Phase 10 → Phase 11
+                            Phase 9 → Phase 10 → Phase 11 → Phase 12
 ```
 
 ### MVP (Minimum Viable Product)
